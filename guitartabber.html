@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Guitar Tab Editor</title>
+<style>
+  * { box-sizing: border-box; }
+
+  body {
+    background: #1c1c1c;
+    color: #d4d4d4;
+    font-family: 'Courier New', monospace;
+    margin: 0;
+    padding: 40px 24px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  h1 {
+    color: #c8a45a;
+    font-size: 22px;
+    letter-spacing: 2px;
+    margin: 0 0 32px 0;
+  }
+
+  .tab-scroll {
+    overflow-x: auto;
+    max-width: 100vw;
+    padding-bottom: 8px;
+  }
+
+  .tab-grid {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* ── Chord label row ── */
+  .chord-row {
+    display: flex;
+    align-items: flex-end;
+    height: 30px;
+    margin-bottom: 6px;
+  }
+
+  .chord-spacer-label {
+    width: 20px;
+    flex-shrink: 0;
+  }
+
+  .chord-pipe-spacer {
+    width: 10px;
+    flex-shrink: 0;
+  }
+
+  .chord-cell-wrap {
+    position: relative;
+    width: 26px;
+    height: 30px;
+    flex-shrink: 0;
+    overflow: visible;
+  }
+
+  .chord-input {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 2px;
+    width: 60px;
+    text-align: center;
+    background: transparent;
+    border: none;
+    border-bottom: 1px dashed #383838;
+    color: #7a9fd4;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    outline: none;
+    z-index: 20;
+    padding: 0 2px;
+    cursor: pointer;
+    caret-color: #7a9fd4;
+    transition: border-color 0.1s, background 0.1s;
+  }
+
+  .chord-input::placeholder {
+    color: #333;
+    font-size: 10px;
+  }
+
+  .chord-input:focus {
+    border-bottom-color: #7a9fd4;
+    background: rgba(122, 159, 212, 0.1);
+    border-radius: 2px 2px 0 0;
+  }
+
+  .chord-input.has-chord {
+    color: #9ab8e8;
+    font-weight: bold;
+    border-bottom-color: #4a6080;
+  }
+
+  .chord-input.auto-detected {
+    color: #6688aa;
+    font-style: italic;
+  }
+
+  /* ── String rows ── */
+  .string-row {
+    display: flex;
+    align-items: center;
+    height: 32px;
+  }
+
+  .string-label {
+    width: 20px;
+    text-align: right;
+    font-size: 15px;
+    font-weight: bold;
+    color: #c8a45a;
+    flex-shrink: 0;
+    user-select: none;
+  }
+
+  .pipe {
+    width: 10px;
+    text-align: center;
+    color: #666;
+    font-size: 15px;
+    flex-shrink: 0;
+    user-select: none;
+    position: relative;
+  }
+
+  .pipe::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0; right: 0;
+    height: 1px;
+    background: #3a3a3a;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .pipe span {
+    position: relative;
+    z-index: 1;
+  }
+
+  .cell-wrap {
+    position: relative;
+    width: 26px;
+    height: 32px;
+    flex-shrink: 0;
+  }
+
+  .cell-wrap::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 0; right: 0;
+    height: 1px;
+    background: #3a3a3a;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .cell {
+    position: relative;
+    z-index: 1;
+    width: 26px;
+    height: 22px;
+    margin-top: 5px;
+    text-align: center;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #f0d898;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    font-weight: bold;
+    outline: none;
+    cursor: pointer;
+    padding: 0;
+    caret-color: transparent;
+    transition: border-color 0.1s, background 0.1s;
+  }
+
+  .cell::placeholder {
+    color: #404040;
+    font-weight: normal;
+  }
+
+  .cell:focus {
+    background: rgba(200, 164, 90, 0.18);
+    border-bottom-color: #c8a45a;
+    border-radius: 2px;
+  }
+
+  /* ── Controls ── */
+  .controls {
+    margin-top: 24px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  button {
+    background: #2a2a2a;
+    color: #c8a45a;
+    border: 1px solid #554420;
+    padding: 7px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  button:hover {
+    background: #c8a45a;
+    color: #1c1c1c;
+  }
+
+  /* ── Output ── */
+  .output-section {
+    margin-top: 28px;
+    width: 100%;
+    max-width: 760px;
+    display: none;
+  }
+
+  .output-label {
+    font-size: 11px;
+    color: #666;
+    margin-bottom: 6px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .output {
+    background: #111;
+    border: 1px solid #2e2e2e;
+    border-radius: 6px;
+    padding: 16px;
+    white-space: pre;
+    font-size: 14px;
+    color: #88cc66;
+    overflow-x: auto;
+    line-height: 1.6;
+  }
+
+  .copied-msg {
+    font-size: 12px;
+    color: #6aaa40;
+    margin-top: 6px;
+    display: none;
+  }
+
+  .hint {
+    margin-top: 16px;
+    font-size: 11px;
+    color: #484848;
+    letter-spacing: 0.5px;
+    text-align: center;
+    line-height: 1.9;
+  }
+</style>
+</head>
+<body>
+
+<h1>Guitar Tab Editor</h1>
+
+<div class="tab-scroll">
+  <div class="tab-grid" id="tab-grid"></div>
+</div>
+
+<div class="controls">
+  <button onclick="addMeasure()">+ Measure</button>
+  <button onclick="removeMeasure()">− Measure</button>
+  <button onclick="clearAll()">Clear</button>
+  <button onclick="exportTab()">Copy as Text</button>
+</div>
+
+<div class="hint">
+  Click a chord label · type chord name (Em, E5, G…) · Enter to fill frets<br>
+  Click a fret cell · type number · Arrow keys / Tab navigate · Backspace clears<br>
+  Focus an empty chord label to auto-detect chord from frets
+</div>
+
+<div class="output-section" id="output-section">
+  <div class="output-label">Text Tab</div>
+  <div class="output" id="output"></div>
+  <div class="copied-msg" id="copied-msg">Copied to clipboard!</div>
+</div>
+
+<script>
+// ── Chord dictionary ─────────────────────────────────────────────────────────
+// Shape: [e, B, G, D, A, E]  (row 0–5)
+// null = muted / don't play,  number = fret
+const CHORDS = {
+  // E family
+  'E':      [0, 0, 1, 2, 2, 0],
+  'Em':     [0, 0, 0, 2, 2, 0],
+  'E7':     [0, 0, 1, 0, 2, 0],
+  'Em7':    [0, 0, 0, 0, 2, 0],
+  'Emaj7':  [null, null, 1, 2, 2, 0],
+  'Esus2':  [0, 0, 2, 2, 2, 0],
+  'Esus4':  [0, 0, 2, 2, 2, 0],
+  'E5':     [null, null, null, 2, 2, 0],
+
+  // A family
+  'A':      [0, 2, 2, 2, 0, null],
+  'Am':     [0, 1, 2, 2, 0, null],
+  'A7':     [0, 2, 0, 2, 0, null],
+  'Am7':    [0, 1, 0, 2, 0, null],
+  'Amaj7':  [0, 2, 1, 2, 0, null],
+  'Asus2':  [0, 0, 2, 2, 0, null],
+  'Asus4':  [0, 3, 2, 2, 0, null],
+  'A5':     [null, null, 2, 2, 0, null],
+
+  // D family
+  'D':      [2, 3, 2, 0, null, null],
+  'Dm':     [1, 3, 2, 0, null, null],
+  'D7':     [2, 1, 2, 0, null, null],
+  'Dm7':    [1, 1, 2, 0, null, null],
+  'Dmaj7':  [2, 2, 2, 0, null, null],
+  'Dsus2':  [0, 3, 2, 0, null, null],
+  'Dsus4':  [3, 3, 2, 0, null, null],
+  'D5':     [null, null, 0, 0, null, null],
+
+  // G family
+  'G':      [3, 0, 0, 0, 2, 3],
+  'Gm':     [3, 3, 3, 5, 5, 3],
+  'G7':     [1, 0, 0, 0, 2, 3],
+  'Gmaj7':  [2, 0, 0, 0, 2, 3],
+  'Gsus2':  [3, 0, 0, 2, 2, 3],
+  'G5':     [null, null, 0, 0, 2, 3],
+
+  // C family
+  'C':      [0, 1, 0, 2, 3, null],
+  'C7':     [0, 1, 3, 2, 3, null],
+  'Cmaj7':  [0, 0, 0, 2, 3, null],
+  'Cadd9':  [0, 3, 0, 2, 3, null],
+  'C5':     [null, null, 2, 2, 3, null],
+
+  // F family (barre)
+  'F':      [1, 1, 2, 3, 3, 1],
+  'Fm':     [1, 1, 1, 3, 3, 1],
+  'Fmaj7':  [0, 1, 2, 3, 3, 1],
+  'F7':     [1, 1, 2, 1, 3, 1],
+  'F5':     [null, null, 3, 3, 1, null],
+
+  // B family
+  'B':      [null, 2, 4, 4, 4, 2],
+  'Bm':     [null, 2, 3, 4, 2, null],
+  'B7':     [null, 2, 0, 2, 2, 2],
+  'Bsus4':  [null, 2, 4, 4, 0, 2],
+  'B5':     [null, null, 4, 4, 2, null],
+
+  // Other common
+  'F#m':    [2, 2, 2, 4, 4, 2],
+  'C#m':    [null, 4, 5, 6, 4, null],
+  'Bb':     [null, 3, 3, 3, 1, null],
+  'Bbm':    [null, 2, 3, 3, 1, null],
+  'Eb':     [null, null, null, 5, 6, 3],   // common voicing
+  'Ab':     [null, 4, 5, 6, 6, 4],
+};
+
+// ── State ────────────────────────────────────────────────────────────────────
+const STRING_NAMES = ['e', 'B', 'G', 'D', 'A', 'E'];
+const BEATS = 8;
+let measures = 2;
+
+let cells = [];       // cells[row][col] = <input>
+let chordLabels = []; // chordLabels[col] = <input>
+
+function totalCols() { return measures * BEATS; }
+
+// ── Build grid ───────────────────────────────────────────────────────────────
+function buildGrid() {
+  const savedCells  = cells.map(row => row ? row.map(c => c ? c.value : '') : []);
+  const savedChords = chordLabels.map(c => c ? c.value : '');
+
+  const grid = document.getElementById('tab-grid');
+  grid.innerHTML = '';
+  cells = [];
+  chordLabels = [];
+
+  const cols = totalCols();
+
+  // Chord label row
+  const chordRow = document.createElement('div');
+  chordRow.className = 'chord-row';
+  chordRow.appendChild(el('span', 'chord-spacer-label'));
+  chordRow.appendChild(el('span', 'chord-pipe-spacer'));
+
+  for (let col = 0; col < cols; col++) {
+    if (col > 0 && col % BEATS === 0) {
+      chordRow.appendChild(el('span', 'chord-pipe-spacer'));
+    }
+    const wrap = el('div', 'chord-cell-wrap');
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.maxLength = 8;
+    input.className = 'chord-input';
+    input.placeholder = '·';
+    input.dataset.col = col;
+
+    const sv = savedChords[col] || '';
+    if (sv) { input.value = sv; input.classList.add('has-chord'); }
+
+    input.addEventListener('keydown', onChordKeyDown);
+    input.addEventListener('input',   onChordInput);
+    input.addEventListener('focus',   onChordFocus);
+    input.addEventListener('blur',    onChordBlur);
+
+    wrap.appendChild(input);
+    chordRow.appendChild(wrap);
+    chordLabels[col] = input;
+  }
+  grid.appendChild(chordRow);
+
+  // String rows
+  STRING_NAMES.forEach((name, row) => {
+    cells[row] = [];
+    const rowDiv = el('div', 'string-row');
+
+    const lbl = el('span', 'string-label');
+    lbl.textContent = name;
+    rowDiv.appendChild(lbl);
+    rowDiv.appendChild(makePipe());
+
+    for (let col = 0; col < cols; col++) {
+      if (col > 0 && col % BEATS === 0) rowDiv.appendChild(makePipe());
+
+      const wrap = el('div', 'cell-wrap');
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.maxLength = 2;
+      input.className = 'cell';
+      input.placeholder = '--';
+      input.dataset.row = row;
+      input.dataset.col = col;
+
+      const sv = savedCells[row] && savedCells[row][col] ? savedCells[row][col] : '';
+      if (sv) input.value = sv;
+
+      input.addEventListener('keydown', onKeyDown);
+      input.addEventListener('input',   onInput);
+      input.addEventListener('focus',   onFocus);
+
+      wrap.appendChild(input);
+      rowDiv.appendChild(wrap);
+      cells[row][col] = input;
+    }
+
+    rowDiv.appendChild(makePipe());
+    grid.appendChild(rowDiv);
+  });
+}
+
+function el(tag, cls) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  return e;
+}
+
+function makePipe() {
+  const p = el('span', 'pipe');
+  p.innerHTML = '<span>|</span>';
+  return p;
+}
+
+// ── Chord label handlers ─────────────────────────────────────────────────────
+function onChordFocus(e) {
+  const input = e.target;
+  const col = parseInt(input.dataset.col);
+  // Auto-detect if empty
+  if (!input.value) {
+    const name = detectChord(col);
+    if (name) {
+      input.value = name;
+      input.classList.add('auto-detected');
+    }
+  }
+  setTimeout(() => input.select(), 0);
+}
+
+function onChordBlur(e) {
+  const input = e.target;
+  // Clear auto-detected ghost text if user didn't confirm it
+  if (input.classList.contains('auto-detected')) {
+    input.value = '';
+    input.classList.remove('auto-detected', 'has-chord');
+  }
+}
+
+function onChordInput(e) {
+  const input = e.target;
+  input.classList.remove('auto-detected');
+  input.classList.toggle('has-chord', input.value.length > 0);
+}
+
+function onChordKeyDown(e) {
+  const input = e.target;
+  const col = parseInt(input.dataset.col);
+  const cols = totalCols();
+
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const applied = applyChord(input, col);
+    // Move to first string cell at this column
+    if (cells[0] && cells[0][col]) cells[0][col].focus();
+
+  } else if (e.key === 'Tab') {
+    e.preventDefault();
+    applyChord(input, col);
+    const next = Math.min(col + 1, cols - 1);
+    if (chordLabels[next]) chordLabels[next].focus();
+
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (cells[0] && cells[0][col]) cells[0][col].focus();
+
+  } else if (e.key === 'ArrowRight') {
+    e.preventDefault();
+    const next = Math.min(col + 1, cols - 1);
+    if (chordLabels[next]) chordLabels[next].focus();
+
+  } else if (e.key === 'ArrowLeft') {
+    e.preventDefault();
+    const prev = Math.max(col - 1, 0);
+    if (chordLabels[prev]) chordLabels[prev].focus();
+
+  } else if (e.key === 'Escape') {
+    input.value = '';
+    input.classList.remove('auto-detected', 'has-chord');
+    input.blur();
+  }
+}
+
+function applyChord(input, col) {
+  const raw = input.value.trim();
+  if (!raw) return false;
+
+  const name = normalizeName(raw);
+  const shape = CHORDS[name];
+
+  if (shape) {
+    input.value = name;
+    input.classList.remove('auto-detected');
+    input.classList.add('has-chord');
+    shape.forEach((fret, row) => {
+      if (cells[row] && cells[row][col]) {
+        cells[row][col].value = fret !== null ? String(fret) : '';
+      }
+    });
+    return true;
+  }
+  // Unknown chord: keep label as custom text anyway
+  input.classList.remove('auto-detected');
+  input.classList.add('has-chord');
+  return false;
+}
+
+function normalizeName(s) {
+  if (!s) return s;
+  // Capitalize root note, preserve everything after
+  // e.g. "em7" → "Em7", "f#m" → "F#m", "sus4" stays as-is
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+// ── Chord detection ──────────────────────────────────────────────────────────
+function detectChord(col) {
+  const pattern = STRING_NAMES.map((_, row) => {
+    const v = cells[row] && cells[row][col] ? cells[row][col].value : '';
+    return v === '' ? null : parseInt(v);
+  });
+  if (pattern.every(v => v === null)) return null;
+
+  for (const [name, shape] of Object.entries(CHORDS)) {
+    if (patternMatchesShape(pattern, shape)) return name;
+  }
+  return null;
+}
+
+function patternMatchesShape(pattern, shape) {
+  for (let i = 0; i < 6; i++) {
+    const p = pattern[i]; // null or int
+    const s = shape[i];   // null or int
+    // Chord says muted but cell has value → no match
+    if (s === null && p !== null) return false;
+    // Chord says fret X but cell is different → no match
+    if (s !== null && p !== s) return false;
+  }
+  return true;
+}
+
+// ── Fret cell handlers ───────────────────────────────────────────────────────
+function onFocus(e) {
+  setTimeout(() => e.target.select(), 0);
+}
+
+function onInput(e) {
+  const input = e.target;
+  const cleaned = input.value.replace(/[^0-9]/g, '').slice(0, 2);
+  input.value = cleaned;
+  if (cleaned.length === 2) {
+    moveTo(parseInt(input.dataset.row), parseInt(input.dataset.col) + 1);
+  }
+}
+
+function onKeyDown(e) {
+  const row = parseInt(e.target.dataset.row);
+  const col = parseInt(e.target.dataset.col);
+
+  switch (e.key) {
+    case 'ArrowRight':
+    case 'Tab':
+      e.preventDefault();
+      moveTo(row, col + 1);
+      break;
+    case 'ArrowLeft':
+      e.preventDefault();
+      moveTo(row, col - 1);
+      break;
+    case 'ArrowUp':
+      e.preventDefault();
+      if (row === 0) {
+        // Go up to chord label
+        if (chordLabels[col]) chordLabels[col].focus();
+      } else {
+        moveTo(row - 1, col);
+      }
+      break;
+    case 'ArrowDown':
+    case 'Enter':
+      e.preventDefault();
+      moveTo(row + 1, col);
+      break;
+    case 'Backspace':
+      if (e.target.value === '') {
+        e.preventDefault();
+        if (col > 0 && cells[row][col - 1]) {
+          cells[row][col - 1].value = '';
+          moveTo(row, col - 1);
+        }
+      }
+      break;
+    case 'Delete':
+      e.preventDefault();
+      e.target.value = '';
+      break;
+  }
+}
+
+function moveTo(row, col) {
+  row = Math.max(0, Math.min(STRING_NAMES.length - 1, row));
+  col = Math.max(0, Math.min(totalCols() - 1, col));
+  if (cells[row] && cells[row][col]) cells[row][col].focus();
+}
+
+// ── Controls ─────────────────────────────────────────────────────────────────
+function addMeasure() { measures++; buildGrid(); }
+
+function removeMeasure() {
+  if (measures <= 1) return;
+  measures--;
+  buildGrid();
+}
+
+function clearAll() {
+  cells.forEach(row => row && row.forEach(c => { if (c) c.value = ''; }));
+  chordLabels.forEach(c => {
+    if (c) { c.value = ''; c.classList.remove('has-chord', 'auto-detected'); }
+  });
+}
+
+// ── Export ───────────────────────────────────────────────────────────────────
+function exportTab() {
+  const cols = totalCols();
+
+  // Find last used column
+  let lastUsed = 0;
+  STRING_NAMES.forEach((_, row) => {
+    for (let col = 0; col < cols; col++) {
+      if (cells[row] && cells[row][col] && cells[row][col].value) {
+        lastUsed = Math.max(lastUsed, col);
+      }
+    }
+  });
+  chordLabels.forEach((c, col) => {
+    if (c && c.value && !c.classList.contains('auto-detected')) {
+      lastUsed = Math.max(lastUsed, col);
+    }
+  });
+
+  const usedCols = Math.max(Math.ceil((lastUsed + 1) / BEATS) * BEATS, BEATS);
+
+  // Per-column character width (1 or 2)
+  const colWidths = Array.from({ length: usedCols }, (_, col) => {
+    let w = 1;
+    STRING_NAMES.forEach((_, row) => {
+      if (cells[row] && cells[row][col] && cells[row][col].value.length === 2) w = 2;
+    });
+    return w;
+  });
+
+  // Compute char position of each column within a tab line (after "X|" prefix)
+  const colPos = [];
+  let pos = 0;
+  for (let col = 0; col < usedCols; col++) {
+    if (col > 0 && col % BEATS === 0) pos++; // measure bar char
+    colPos[col] = pos;
+    pos += colWidths[col];
+  }
+  const lineLen = pos; // total chars after the 2-char prefix
+
+  // Build chord label line
+  const chordBuf = new Array(2 + lineLen).fill(' ');
+  let hasAnyChord = false;
+  chordLabels.forEach((c, col) => {
+    if (col >= usedCols) return;
+    if (!c || !c.value || c.classList.contains('auto-detected')) return;
+    const name = c.value.trim();
+    if (!name) return;
+    hasAnyChord = true;
+    const startChar = 2 + colPos[col]; // 2 = prefix width
+    for (let i = 0; i < name.length; i++) {
+      if (startChar + i < chordBuf.length) chordBuf[startChar + i] = name[i];
+    }
+  });
+
+  // Build string lines
+  const lines = [];
+  if (hasAnyChord) {
+    lines.push(chordBuf.join('').trimEnd());
+  }
+
+  STRING_NAMES.forEach((name, row) => {
+    let line = name + '|';
+    for (let col = 0; col < usedCols; col++) {
+      if (col > 0 && col % BEATS === 0) line += '|';
+      const val = cells[row] && cells[row][col] ? cells[row][col].value : '';
+      const w = colWidths[col];
+      line += val ? val.padEnd(w, '-') : '-'.repeat(w);
+    }
+    line += '|';
+    lines.push(line);
+  });
+
+  const tabText = lines.join('\n');
+
+  document.getElementById('output-section').style.display = 'block';
+  document.getElementById('output').textContent = tabText;
+  const copied = document.getElementById('copied-msg');
+  copied.style.display = 'none';
+
+  navigator.clipboard.writeText(tabText).then(() => {
+    copied.style.display = 'block';
+    setTimeout(() => { copied.style.display = 'none'; }, 2000);
+  }).catch(() => {});
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+buildGrid();
+</script>
+</body>
+</html>
